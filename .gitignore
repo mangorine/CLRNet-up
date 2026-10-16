@@ -1,6 +1,7 @@
 work_dirs
 data
 cache/
+venv/
 
 __pycache__/
 */*.un~

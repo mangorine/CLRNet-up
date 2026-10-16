@@ -1,8 +1,6 @@
-import glob
 import os
 import re
 from setuptools import find_packages, setup
-from torch.utils.cpp_extension import CUDAExtension, BuildExtension
 
 
 def parse_requirements(fname='requirements.txt', with_version=True):
@@ -80,23 +78,6 @@ def parse_requirements(fname='requirements.txt', with_version=True):
 install_requires = parse_requirements()
 
 
-def get_extensions():
-    extensions = []
-
-    op_files = glob.glob('./clrnet/ops/csrc/*.c*')
-    extension = CUDAExtension
-    ext_name = 'clrnet.ops.nms_impl'
-
-    ext_ops = extension(
-        name=ext_name,
-        sources=op_files,
-    )
-
-    extensions.append(ext_ops)
-
-    return extensions
-
-
 setup(name='clrnet',
       version="1.0",
       keywords='computer vision & lane detection',
@@ -111,6 +92,4 @@ setup(name='clrnet',
       setup_requires=['pytest-runner'],
       tests_require=['pytest'],
       install_requires=install_requires,
-      ext_modules=get_extensions(),
-      cmdclass={'build_ext': BuildExtension},
       zip_safe=False)
