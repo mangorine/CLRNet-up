@@ -9,7 +9,6 @@ import logging
 from .registry import DATASETS
 from .process import Process
 from clrnet.utils.visualization import imshow_lanes
-from mmcv.parallel import DataContainer as DC
 
 
 @DATASETS.register_module
@@ -22,7 +21,6 @@ class BaseDataset(Dataset):
         self.processes = Process(processes, cfg)
 
     def view(self, predictions, img_metas):
-        img_metas = [item for img_meta in img_metas.data for item in img_meta]
         for lanes, img_meta in zip(predictions, img_metas):
             img_name = img_meta['img_name']
             img = cv2.imread(osp.join(self.data_root, img_name))
@@ -61,7 +59,6 @@ class BaseDataset(Dataset):
         sample = self.processes(sample)
         meta = {'full_img_path': data_info['img_path'],
                 'img_name': data_info['img_name']}
-        meta = DC(meta, cpu_only=True)
         sample.update({'meta': meta})
 
         return sample

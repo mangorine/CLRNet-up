@@ -96,7 +96,8 @@ class Config:
         if filename.endswith('.py'):
             with tempfile.TemporaryDirectory() as temp_config_dir:
                 temp_config_file = tempfile.NamedTemporaryFile(
-                    dir=temp_config_dir, suffix='.py')
+                    dir=temp_config_dir, suffix='.py', delete=False)
+                temp_config_file.close()
                 temp_config_name = osp.basename(temp_config_file.name)
                 shutil.copyfile(filename,
                                 osp.join(temp_config_dir, temp_config_name))
@@ -115,8 +116,8 @@ class Config:
                 # close temp file
                 temp_config_file.close()
         elif filename.endswith(('.yml', '.yaml', '.json')):
-            import mmcv
-            cfg_dict = mmcv.load(filename)
+            import mmengine
+            cfg_dict = mmengine.load(filename)
         else:
             raise IOError('Only py/yml/yaml/json type are supported now!')
 
@@ -320,6 +321,15 @@ class Config:
     def __getattr__(self, name):
         return getattr(self._cfg_dict, name)
 
+    def __getstate__(self):
+        return (self._cfg_dict, self._filename, self._text)
+
+    def __setstate__(self, state):
+        _cfg_dict, _filename, _text = state
+        super(Config, self).__setattr__('_cfg_dict', _cfg_dict)
+        super(Config, self).__setattr__('_filename', _filename)
+        super(Config, self).__setattr__('_text', _text)
+
     def __getitem__(self, name):
         return self._cfg_dict.__getitem__(name)
 
@@ -348,12 +358,12 @@ class Config:
                 with open(file, 'w') as f:
                     f.write(self.pretty_text)
         else:
-            import mmcv
+            import mmengine
             if file is None:
                 file_format = self.filename.split('.')[-1]
-                return mmcv.dump(cfg_dict, file_format=file_format)
+                return mmengine.dump(cfg_dict, file_format=file_format)
             else:
-                mmcv.dump(cfg_dict, file)
+                mmengine.dump(cfg_dict, file)
 
     def has_attr_in_cfg(self, name):
         return hasattr(self._cfg_dict, name)

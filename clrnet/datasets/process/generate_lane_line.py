@@ -1,9 +1,8 @@
 import math
 import numpy as np
 import cv2
-import imgaug.augmenters as iaa
-from imgaug.augmentables.lines import LineString, LineStringsOnImage
-from imgaug.augmentables.segmaps import SegmentationMapsOnImage
+import albumentations as A
+from shapely.geometry import LineString, box
 from scipy.interpolate import InterpolatedUnivariateSpline
 from clrnet.datasets.process.transforms import CLRTransforms
 
@@ -32,29 +31,44 @@ class GenerateLaneLine(object):
                 p = aug['p']
                 if aug['name'] != 'OneOf':
                     img_transforms.append(
-                        iaa.Sometimes(p=p,
-                                      then_list=getattr(
-                                          iaa,
-                                          aug['name'])(**aug['parameters'])))
+                        getattr(A, aug['name'])(**aug.get('parameters', {}),
+                                                p=p))
                 else:
                     img_transforms.append(
-                        iaa.Sometimes(
-                            p=p,
-                            then_list=iaa.OneOf([
-                                getattr(iaa,
-                                        aug_['name'])(**aug_['parameters'])
-                                for aug_ in aug['transforms']
-                            ])))
+                        A.OneOf([
+                            getattr(A, aug_['name'])(
+                                **aug_.get('parameters', {}))
+                            for aug_ in aug['transforms']
+                        ], p=p))
         else:
             img_transforms = []
-        self.transform = iaa.Sequential(img_transforms)
+        self.transform = A.Compose(img_transforms,
+                                   keypoint_params=A.KeypointParams(
+                                       format='xy', remove_invisible=False))
 
-    def lane_to_linestrings(self, lanes):
-        lines = []
+    def lanes_to_keypoints(self, lanes):
+        keypoints = [point for lane in lanes for point in lane]
+        lane_lengths = [len(lane) for lane in lanes]
+
+        return keypoints, lane_lengths
+
+    def keypoints_to_lanes(self, keypoints, lane_lengths):
+        keypoints = np.asarray(keypoints, dtype=np.float64).reshape(-1, 2)
+        return np.split(keypoints, np.cumsum(lane_lengths)[:-1])
+
+    def clip_lanes(self, lanes, img_shape):
+        # cut lanes at the image border, a lane may be split in several parts
+        img_area = box(0, 0, img_shape[1], img_shape[0])
+        clipped = []
         for lane in lanes:
-            lines.append(LineString(lane))
+            if len(lane) < 2:
+                continue
+            geom = LineString(lane).intersection(img_area)
+            for part in getattr(geom, 'geoms', [geom]):
+                if isinstance(part, LineString) and not part.is_empty:
+                    clipped.append(np.array(part.coords))
 
-        return lines
+        return clipped
 
     def sample_lane(self, points, sample_ys):
         # this function expects the points to be sorted
@@ -168,33 +182,25 @@ class GenerateLaneLine(object):
         }
         return new_anno
 
-    def linestrings_to_lanes(self, lines):
-        lanes = []
-        for line in lines:
-            lanes.append(line.coords)
-
-        return lanes
-
     def __call__(self, sample):
         img_org = sample['img']
-        line_strings_org = self.lane_to_linestrings(sample['lanes'])
-        line_strings_org = LineStringsOnImage(line_strings_org,
-                                              shape=img_org.shape)
+        keypoints_org, lane_lengths = self.lanes_to_keypoints(sample['lanes'])
 
         for i in range(30):
             if self.training:
-                mask_org = SegmentationMapsOnImage(sample['mask'],
-                                                   shape=img_org.shape)
-                img, line_strings, seg = self.transform(
+                transformed = self.transform(
                     image=img_org.copy().astype(np.uint8),
-                    line_strings=line_strings_org,
-                    segmentation_maps=mask_org)
+                    keypoints=keypoints_org,
+                    mask=sample['mask'])
+                seg = transformed['mask']
             else:
-                img, line_strings = self.transform(
+                transformed = self.transform(
                     image=img_org.copy().astype(np.uint8),
-                    line_strings=line_strings_org)
-            line_strings.clip_out_of_image_()
-            new_anno = {'lanes': self.linestrings_to_lanes(line_strings)}
+                    keypoints=keypoints_org)
+            img = transformed['image']
+            lanes = self.keypoints_to_lanes(transformed['keypoints'],
+                                            lane_lengths)
+            new_anno = {'lanes': self.clip_lanes(lanes, img.shape)}
             try:
                 annos = self.transform_annotation(new_anno,
                                                   img_wh=(self.img_w,
@@ -212,7 +218,7 @@ class GenerateLaneLine(object):
         sample['lane_line'] = label
         sample['lanes_endpoints'] = lane_endpoints
         sample['gt_points'] = new_anno['lanes']
-        sample['seg'] = seg.get_arr() if self.training else np.zeros(
+        sample['seg'] = seg if self.training else np.zeros(
             img_org.shape)
 
         return sample

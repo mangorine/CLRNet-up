@@ -4,7 +4,6 @@ import torch
 from functools import partial
 import numpy as np
 import random
-from mmcv.parallel import collate
 
 DATASETS = Registry('datasets')
 PROCESS = Registry('process')
@@ -24,6 +23,13 @@ def build_dataset(split_cfg, cfg):
     return build(split_cfg, DATASETS, default_args=dict(cfg=cfg))
 
 
+def collate(batch):
+    metas = [sample.pop('meta') for sample in batch]
+    batch = torch.utils.data.default_collate(batch)
+    batch['meta'] = metas
+    return batch
+
+
 def worker_init_fn(worker_id, seed):
     worker_seed = worker_id + seed
     np.random.seed(worker_seed)
@@ -40,7 +46,6 @@ def build_dataloader(split_cfg, cfg, is_train=True):
 
     init_fn = partial(worker_init_fn, seed=cfg.seed)
 
-    samples_per_gpu = cfg.batch_size // cfg.gpus
     data_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=cfg.batch_size,
@@ -48,7 +53,7 @@ def build_dataloader(split_cfg, cfg, is_train=True):
         num_workers=cfg.workers,
         pin_memory=False,
         drop_last=False,
-        collate_fn=partial(collate, samples_per_gpu=samples_per_gpu),
+        collate_fn=collate,
         worker_init_fn=init_fn)
 
     return data_loader

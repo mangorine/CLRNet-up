@@ -14,7 +14,6 @@ from .scheduler import build_scheduler
 from clrnet.datasets import build_dataloader
 from clrnet.utils.recorder import build_recorder
 from clrnet.utils.net_utils import save_model, load_network, resume_network
-from mmcv.parallel import MMDataParallel
 
 
 class Runner(object):
@@ -25,8 +24,8 @@ class Runner(object):
         self.cfg = cfg
         self.recorder = build_recorder(self.cfg)
         self.net = build_net(self.cfg)
-        self.net = MMDataParallel(self.net,
-                                  device_ids=range(self.cfg.gpus)).cuda()
+        self.net = torch.nn.DataParallel(self.net,
+                                       device_ids=range(self.cfg.gpus)).cuda()
         self.recorder.logger.info('Network: \n' + str(self.net))
         self.resume()
         self.optimizer = build_optimizer(self.cfg, self.net)

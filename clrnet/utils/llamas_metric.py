@@ -71,13 +71,13 @@ def continuous_cross_iou(xs, ys, width=30, img_shape=LLAMAS_IMG_RES):
     h, w = img_shape
     image = Polygon([(0, 0), (0, h - 1), (w - 1, h - 1), (w - 1, 0)])
     xs = [
-        LineString(lane).buffer(distance=width / 2., cap_style=1,
-                                join_style=2).intersection(image)
+        LineString(lane).buffer(distance=width / 2., cap_style='round',
+                                join_style='mitre').intersection(image)
         for lane in xs
     ]
     ys = [
-        LineString(lane).buffer(distance=width / 2., cap_style=1,
-                                join_style=2).intersection(image)
+        LineString(lane).buffer(distance=width / 2., cap_style='round',
+                                join_style='mitre').intersection(image)
         for lane in ys
     ]
 
