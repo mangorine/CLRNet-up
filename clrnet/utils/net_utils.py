@@ -7,7 +7,7 @@ import torch.nn.functional
 
 def save_model(net, optim, scheduler, recorder, is_best=False):
     model_dir = os.path.join(recorder.work_dir, 'ckpt')
-    os.makedirs(model_dir, exist_ok=True)
+    os.system('mkdir -p {}'.format(model_dir))
     epoch = recorder.epoch
     ckpt_name = 'best' if is_best else epoch
     torch.save(

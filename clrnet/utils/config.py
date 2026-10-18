@@ -96,8 +96,7 @@ class Config:
         if filename.endswith('.py'):
             with tempfile.TemporaryDirectory() as temp_config_dir:
                 temp_config_file = tempfile.NamedTemporaryFile(
-                    dir=temp_config_dir, suffix='.py', delete=False)
-                temp_config_file.close()
+                    dir=temp_config_dir, suffix='.py')
                 temp_config_name = osp.basename(temp_config_file.name)
                 shutil.copyfile(filename,
                                 osp.join(temp_config_dir, temp_config_name))
@@ -320,15 +319,6 @@ class Config:
 
     def __getattr__(self, name):
         return getattr(self._cfg_dict, name)
-
-    def __getstate__(self):
-        return (self._cfg_dict, self._filename, self._text)
-
-    def __setstate__(self, state):
-        _cfg_dict, _filename, _text = state
-        super(Config, self).__setattr__('_cfg_dict', _cfg_dict)
-        super(Config, self).__setattr__('_filename', _filename)
-        super(Config, self).__setattr__('_text', _text)
 
     def __getitem__(self, name):
         return self._cfg_dict.__getitem__(name)
